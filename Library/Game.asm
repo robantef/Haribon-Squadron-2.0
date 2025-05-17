@@ -11,7 +11,7 @@ include "Library/GAssets.asm"
 include "Library/NAssets.asm"
 
 	DebugBool						db	0
-	UnliSkills						db  1
+	UnliSkills						db  0
 
 ; -----------------------------------------------------------
 ; Accessing bitmap files and text files for the game assets
@@ -124,45 +124,19 @@ include "Library/Combo.asm"
 ; -----------------------------------------------------------
 proc PrintBackground
 	call playSoundMenu
-
-	; Select background based on level
-	cmp [byte ptr Level], 4
-	jb @@useBackground1  ; If level < 4, use first background
+	
+	;select bg based on level
 	cmp [byte ptr Level], 7
-	jb @@useBackground2  ; If 4 <= level < 7, use second background
-	jmp @@useBackground3 ; Otherwise use third background
+	je @useBG3
+	cmp [byte ptr Level], 4
+	je @useBG2
 
-@@useBackground1:
+@useBG1:
 	push offset SpaceBgFileName
 	push offset SpaceBgFileHandle
-	jmp @@openFile
-
-@@useBackground2:
-	push offset SpaceBg2FileName
-	push offset SpaceBg2FileHandle
-	jmp @@openFile
-
-@@useBackground3:
-	push offset SpaceBg3FileName
-	push offset SpaceBg3FileHandle
-
-@@openFile:
 	call OpenFile
 
-	; Get the handle from the correct variable based on which background we're using
-	cmp [byte ptr Level], 4
-	jb @@useHandle1
-	cmp [byte ptr Level], 7
-	jb @@useHandle2
-	push [SpaceBg3FileHandle]
-	jmp @@printBMP
-@@useHandle1:
 	push [SpaceBgFileHandle]
-	jmp @@printBMP
-@@useHandle2:
-	push [SpaceBg2FileHandle]
-
-@@printBMP:
 	push 320
 	push 200
 	push 0
@@ -170,23 +144,44 @@ proc PrintBackground
 	push offset FileReadBuffer
 	call PrintBMP
 
-	; Close the correct file handle
-	cmp [byte ptr Level], 4
-	jb @@closeHandle1
-	cmp [byte ptr Level], 7
-	jb @@closeHandle2
-	push [SpaceBg3FileHandle]
-	jmp @@closeFile
-@@closeHandle1:
 	push [SpaceBgFileHandle]
-	jmp @@closeFile
-@@closeHandle2:
-	push [SpaceBg2FileHandle]
-
-@@closeFile:
 	call CloseFile
-
 	ret
+
+@useBG2:
+	push offset SpaceBg2FileName
+	push offset SpaceBg2FileHandle
+	call OpenFile
+
+	push [SpaceBg2FileHandle]
+	push 320
+	push 200
+	push 0
+	push 0
+	push offset FileReadBuffer
+	call PrintBMP
+
+	push [SpaceBg2FileHandle]
+	call CloseFile
+	ret
+	
+@useBG3:
+	push offset SpaceBg3FileName
+	push offset SpaceBg3FileHandle
+	call OpenFile
+
+	push [SpaceBg3FileHandle]
+	push 320
+	push 200
+	push 0
+	push 0
+	push offset FileReadBuffer
+	call PrintBMP
+
+	push [SpaceBg3FileHandle]
+	call CloseFile
+	ret
+
 endp PrintBackground
 
 ; --------------------------------------------------------
@@ -229,22 +224,6 @@ proc PrintStatsArea
 
 	push [BatteryFileHandle]
 	call CloseFile
-
-; @@printHealth:
-; 	push offset BHealthFileName
-; 	push offset BHealthFileHandle	
-; 	call OpenFile
-
-; 	push [BHealthFileHandle]
-; 	push BHealthLength
-; 	push BHealthHeight
-; 	push BHealthPrintStartLine
-; 	push BHealthPrintStartRow
-; 	push offset FileReadBuffer
-; 	call PrintBMP
-
-; 	push [BHealthFileHandle]
-; 	call CloseFile
 
 	;Score label:
 	xor bh, bh
@@ -800,7 +779,7 @@ proc InitializeLevel
 	call MoveToStart
 
 	; #Jieco
-	call ResetCombo ; resets combo every stage cleared
+	; call ResetCombo ; resets combo every stage cleared ;reimplement if needed
 
 	cld
 	push ds
@@ -820,7 +799,7 @@ endp InitializeLevel
 ; Initiating the game, setting the initial values
 ; -----------------------------------------------
 proc InitializeGame
-	mov [word ptr Score], 300 ; #Jieco
+	mov [word ptr Score], 300
 	mov [byte ptr LivesRemaining], 3
 	mov [byte ptr Level], 1
 
@@ -971,6 +950,11 @@ endp CheckIfAliensReachedBottom
 ; Handles shooter + Aliens hits and deaths, movements, etc.
 ; -----------------------------------------------------------
 proc PlayGame
+	cmp [byte ptr DebugBool], 1
+	jne @@skipDebug
+	mov [byte ptr  UnliSkills], 1
+
+@@skipDebug:
 	; Open all alien sprites
 	push offset AlienFileName
 	push offset AlienFileHandle
